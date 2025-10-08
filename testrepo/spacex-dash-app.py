@@ -12,9 +12,9 @@ max_payload = spacex_df['Payload Mass (kg)'].max()
 min_payload = spacex_df['Payload Mass (kg)'].min()
 
 # 唯一发射场（给下拉菜单）
-site_options = [{'label': 'All Sites', 'value': 'ALL'}] + [
-    {'label': s, 'value': s} for s in sorted(spacex_df['Launch Site'].unique())
-]
+# site_options = [{'label': 'All Sites', 'value': 'ALL'}] + [
+#     {'label': s, 'value': s} for s in sorted(spacex_df['Launch Site'].unique())
+#     ]
 
 # 应用
 app = dash.Dash(__name__)
@@ -32,7 +32,13 @@ app.layout = html.Div(
         # Task 1: 下拉
         dcc.Dropdown(
             id='site-dropdown',
-            options=site_options,
+            # options=site_options,
+            options=[
+                {'label': 'All Sites', 'value': 'ALL'},
+                {'label': 'CCAFS LC-40', 'value': 'CCAFS LC-40'},
+                {'label': 'VAFB SLC-4E', 'value': 'VAFB SLC-4E'},
+                {'label': 'KSC LC-39A', 'value': 'KSC LC-39A'}
+            ],
             value='ALL',
             placeholder='Select a Launch Site here',
             searchable=True,
@@ -65,42 +71,82 @@ app.layout = html.Div(
 # ==========
 
 # Task 2: 下拉 -> 饼图
+# @app.callback(
+#     Output('success-pie-chart', 'figure'),
+#     Input('site-dropdown', 'value')
+# )
+# def get_pie_chart(entered_site):
+#     # 1) 选择“ALL” → 统计各发射场的成功次数（class=1），画饼图
+#     if entered_site == 'ALL' or entered_site is None:
+#         df_success = (
+#             spacex_df[spacex_df['class'] == 1]
+#             .groupby('Launch Site')['class']
+#             .count()
+#             .reset_index(name='success_count')
+#         )
+#         fig = px.pie(
+#             df_success,
+#             values='success_count',
+#             names='Launch Site',
+#             title='Total Successful Launches by Site'
+#         )
+#         return fig
+
+#     # 2) 选择某个发射场 → 统计该场成功/失败次数（class=1 / class=0），画饼图
+#     site_df = spacex_df[spacex_df['Launch Site'] == entered_site]
+#     outcome_counts = (
+#         site_df['class']
+#         .value_counts()
+#         .rename({1: 'Success', 0: 'Failed'})
+#         .reset_index()
+#         .rename(columns={'index': 'Outcome', 'class': 'count'})
+#     )
+#     fig = px.pie(
+#         outcome_counts,
+#         values='count',
+#         names='Outcome',
+#         title=f'Success vs. Failed for {entered_site}'
+#     )
+#     return fig
+
 @app.callback(
     Output('success-pie-chart', 'figure'),
     Input('site-dropdown', 'value')
 )
 def get_pie_chart(entered_site):
-    if entered_site == 'ALL':
-        # 所有站点的成功次数
-        success_by_site = (
+    # 情况 1：选择 "ALL" 时显示各发射场成功次数
+    if entered_site == 'ALL' or not entered_site:
+        df_success = (
             spacex_df[spacex_df['class'] == 1]
-            .groupby('Launch Site')
-            .size()
-            .reset_index(name='Successes')
+            .groupby('Launch Site', as_index=False)
+            .size()  # 用 size() 代替 count() 避免重复列名
+            .rename(columns={'size': 'success_count'})
         )
         fig = px.pie(
-            success_by_site,
-            values='Successes',
+            df_success,
+            values='success_count',
             names='Launch Site',
-            title='Total Success Launches By Site'
+            title='Total Successful Launches by Site'
         )
+        return fig
+
+    # 情况 2：选择单个发射场，显示该场成功/失败占比
     else:
-        # 单一站点：成功 vs 失败
         site_df = spacex_df[spacex_df['Launch Site'] == entered_site]
-        outcome = (
+        outcome_counts = (
             site_df['class']
-            .map({1: 'Success', 0: 'Failure'})
             .value_counts()
-            .reset_index()
-            .rename(columns={'index': 'Outcome', 'class': 'Count'})
+            .rename_axis('class')
+            .reset_index(name='num')  # 改为 'num' 避免重复 'count'
         )
+        outcome_counts['Outcome'] = outcome_counts['class'].map({1: 'Success', 0: 'Failed'})
         fig = px.pie(
-            outcome,
-            values='Count',
+            outcome_counts,
+            values='num',
             names='Outcome',
-            title=f'Total Launch Outcomes for Site {entered_site}'
+            title=f'Success vs Failed for {entered_site}'
         )
-    return fig
+        return fig
 
 
 # Task 4: 下拉 + 滑块 -> 散点图
